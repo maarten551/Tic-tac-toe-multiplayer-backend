@@ -3,6 +3,8 @@ package com.maarten551.tictactoe_backend.controller;
 import java.util.List;
 import java.util.Optional;
 
+import com.maarten551.tictactoe_backend.exception.LobbyDoesNotExistException;
+import com.maarten551.tictactoe_backend.exception.PlayerNotInLobbyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -41,7 +43,7 @@ public class LobbyController {
 	@SendTo(LOBBY_OVERVIEW_ENDPOINT)
 	public List<Lobby> onLobbyCreate(@Payload String lobbyName, SimpMessageHeaderAccessor headerAccessor)
 			throws PlayerAlreadyInLobbyException {
-		Player player = this.playerContainer.getPlayerByHeader(headerAccessor);
+        Player player = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
 
 		// Check if the player is already in a lobby
 		Optional<Lobby> lobbyByPlayer = this.lobbyContainer.getLobbyByPlayer(player);
@@ -54,8 +56,31 @@ public class LobbyController {
 		return this.lobbyContainer.getAllWaitingLobbies();
 	}
 
+    @MessageMapping({"/send/lobbies/leave-current"})
+    @SendTo(LOBBY_OVERVIEW_ENDPOINT)
+    public List<Lobby> onLeaveCurrentLobby(SimpMessageHeaderAccessor headerAccessor) throws PlayerNotInLobbyException {
+        this.lobbyContainer.removePlayerFromLobby(this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId()));
+
+        return this.lobbyContainer.getAllWaitingLobbies();
+    }
+
+    @MessageMapping({"/send/lobbies/join"})
+    @SendTo(LOBBY_OVERVIEW_ENDPOINT)
+    public List<Lobby> onJoinLobby(@Payload String lobbyId, SimpMessageHeaderAccessor headerAccessor) throws LobbyDoesNotExistException, PlayerAlreadyInLobbyException {
+        Player player = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
+        Lobby lobby = this.lobbyContainer.getLobbyById(lobbyId);
+
+        if (this.lobbyContainer.getLobbyByPlayer(player).isPresent()) {
+            throw new PlayerAlreadyInLobbyException(player, lobby);
+        }
+
+        lobby.players.add(player);
+
+        return this.lobbyContainer.getAllWaitingLobbies();
+    }
+
 	@MessageExceptionHandler
-	@SendToUser("/queue/errors")
+    @SendToUser("/errors")
 	public String handleException(Throwable exception) {
 		return exception.getMessage();
     }

@@ -25,7 +25,7 @@ public class ChatController {
     @MessageMapping({"/send/message"})
     @SendTo("/chat")
     public String onReceiveMessage(@Payload String message, SimpMessageHeaderAccessor headerAccessor) {
-        Player currentPlayer = playerContainer.getPlayerByHeader(headerAccessor);
+        Player currentPlayer = playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
         String dateString = new SimpleDateFormat("HH:mm:ss").format(new Date());
 
         return String.format("%s - %s: %s", dateString, currentPlayer.getUsername(), message);

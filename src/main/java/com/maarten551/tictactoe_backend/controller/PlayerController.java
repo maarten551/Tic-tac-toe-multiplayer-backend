@@ -24,9 +24,11 @@ public class PlayerController {
 	}
 
 	@SubscribeMapping(PLAYER_OVERVIEW_ENDPOINT)
+    @SendTo(PLAYER_OVERVIEW_ENDPOINT)
 	public PlayerOverview onPlayerOverview(SimpMessageHeaderAccessor headerAccessor) {
 		PlayerOverview playerOverview = new PlayerOverview();
-		playerOverview.sessionId = this.playerContainer.getPlayerByHeader(headerAccessor).getSessionId();
+        // This makes sure the player is actually created when it does not exist yet
+        playerOverview.sessionId = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId()).getSessionId();
 		playerOverview.players = this.playerContainer.getAllPlayers();
 
 		return playerOverview;
@@ -39,7 +41,7 @@ public class PlayerController {
 			name = Player.DEFAULT_PLAYER_NAME;
 		}
 
-		Player playerByHeader = this.playerContainer.getPlayerByHeader(headerAccessor);
+        Player playerByHeader = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
 
 		playerByHeader.setUsername(name);
 

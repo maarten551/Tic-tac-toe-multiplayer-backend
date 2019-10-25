@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.maarten551.tictactoe_backend.exception.LobbyDoesNotExistException;
+import com.maarten551.tictactoe_backend.exception.PlayerNotInLobbyException;
 import org.springframework.stereotype.Service;
 
 import com.maarten551.tictactoe_backend.model.GameSession;
@@ -40,5 +42,28 @@ public class LobbyContainer {
         }
 
         return this.activeLobbies.stream().filter(lobby -> lobby.players.contains(player)).findFirst();
+    }
+
+    public void removePlayerFromLobby(Player player) throws PlayerNotInLobbyException {
+        Optional<Lobby> lobbyByPlayer = this.getLobbyByPlayer(player);
+        if (!lobbyByPlayer.isPresent()) {
+            throw new PlayerNotInLobbyException("You're not in a lobby!");
+        }
+
+        Lobby lobby = lobbyByPlayer.get();
+        if (lobby.leader == player) {
+            this.activeLobbies.remove(lobby);
+        } else {
+            lobby.players.remove(player);
+        }
+    }
+
+    public Lobby getLobbyById(String lobbyId) throws LobbyDoesNotExistException {
+        Optional<Lobby> relatedLobby = this.activeLobbies.stream().filter(lobby -> lobby.id.toString().equals(lobbyId)).findFirst();
+        if (!relatedLobby.isPresent()) {
+            throw new LobbyDoesNotExistException(String.format("Lobby with name '%s' does not exist", lobbyId));
+        }
+
+        return relatedLobby.get();
     }
 }

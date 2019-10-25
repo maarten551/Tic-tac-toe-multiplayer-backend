@@ -40,8 +40,7 @@ public class PlayerContainer {
 	/**
 	 * Finds player by sessionId, if no player is found, create the player.
 	 */
-	public Player getPlayerByHeader(SimpMessageHeaderAccessor headerAccessor) {
-		String sessionId = headerAccessor.getSessionId();
+	public Player getPlayerBySessionId(String sessionId) {
 		if (this.playersBySessionId.containsKey(sessionId)) {
 			return this.playersBySessionId.get(sessionId);
 		}
@@ -54,5 +53,9 @@ public class PlayerContainer {
 
 	public List<Player> getAllPlayers() {
 		return new ArrayList<>(this.playersBySessionId.values());
+	}
+
+	public void removePlayerFromApplicationAndCleanup(String sessionId) {
+		this.playersBySessionId.remove(sessionId);
 	}
 }
