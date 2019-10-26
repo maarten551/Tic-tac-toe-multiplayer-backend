@@ -1,43 +1,51 @@
 package com.maarten551.tictactoe_backend.controller;
 
-import java.util.List;
-import java.util.Optional;
-
-import com.maarten551.tictactoe_backend.exception.LobbyDoesNotExistException;
-import com.maarten551.tictactoe_backend.exception.PlayerNotInLobbyException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.annotation.SendToUser;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.stereotype.Controller;
-
-import com.maarten551.tictactoe_backend.exception.PlayerAlreadyInLobbyException;
+import com.maarten551.tictactoe_backend.dto.SelectedLobbyOverview;
+import com.maarten551.tictactoe_backend.exception.*;
+import com.maarten551.tictactoe_backend.logic.GameSessionContainer;
 import com.maarten551.tictactoe_backend.logic.LobbyContainer;
 import com.maarten551.tictactoe_backend.logic.PlayerContainer;
 import com.maarten551.tictactoe_backend.model.Lobby;
 import com.maarten551.tictactoe_backend.model.Player;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.handler.annotation.*;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SendToUser;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.stereotype.Controller;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Controller
 public class LobbyController {
 	public static final String LOBBY_OVERVIEW_ENDPOINT = "/lobbies";
+    public static final String LOBBY_JOINED_ENDPOINT = "/lobby/{lobbyId}";
 
-	private LobbyContainer lobbyContainer;
-	private PlayerContainer playerContainer;
+    private final LobbyContainer lobbyContainer;
+    private final PlayerContainer playerContainer;
+    private final GameSessionContainer gameSessionContainer;
+    private final SimpMessagingTemplate template;
 
 	@Autowired
-	public LobbyController(LobbyContainer lobbyContainer, PlayerContainer playerContainer) {
+    public LobbyController(LobbyContainer lobbyContainer, PlayerContainer playerContainer, GameSessionContainer gameSessionContainer, SimpMessagingTemplate template) {
 		this.lobbyContainer = lobbyContainer;
 		this.playerContainer = playerContainer;
+        this.gameSessionContainer = gameSessionContainer;
+        this.template = template;
 	}
 
 	@SubscribeMapping(LOBBY_OVERVIEW_ENDPOINT)
 	public List<Lobby> onLobbyOverview() {
 		return this.lobbyContainer.getAllWaitingLobbies();
 	}
+
+//	@SubscribeMapping(LOBBY_JOINED_ENDPOINT)
+//	public Lobby onJoinLobby(@DestinationVariable String lobbyId) throws LobbyDoesNotExistException {
+//		return this.lobbyContainer.getLobbyById(UUID.fromString(lobbyId));
+//	}
 
 	@MessageMapping({ "/send/lobbies/create" })
 	@SendTo(LOBBY_OVERVIEW_ENDPOINT)
@@ -68,7 +76,7 @@ public class LobbyController {
     @SendTo(LOBBY_OVERVIEW_ENDPOINT)
     public List<Lobby> onJoinLobby(@Payload String lobbyId, SimpMessageHeaderAccessor headerAccessor) throws LobbyDoesNotExistException, PlayerAlreadyInLobbyException {
         Player player = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
-        Lobby lobby = this.lobbyContainer.getLobbyById(lobbyId);
+        Lobby lobby = this.lobbyContainer.getLobbyById(UUID.fromString(lobbyId));
 
         if (this.lobbyContainer.getLobbyByPlayer(player).isPresent()) {
             throw new PlayerAlreadyInLobbyException(player, lobby);
@@ -79,9 +87,28 @@ public class LobbyController {
         return this.lobbyContainer.getAllWaitingLobbies();
     }
 
+    @MessageMapping({"/send/lobby/{lobbyId}/start-game"})
+    @SendTo(LOBBY_OVERVIEW_ENDPOINT)
+    public List<Lobby> onLobbyStartGame(@DestinationVariable String lobbyId, SimpMessageHeaderAccessor headerAccessor) throws LobbyDoesNotExistException, GameSessionHasAlreadyStartedException, PlayerIsNotLeaderOfGameException, NotEnoughPlayersInLobbyToStartException, GameSessionNotFoundException {
+        UUID lobbyUUID = UUID.fromString(lobbyId);
+        Player player = this.playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
+        Lobby lobby = this.lobbyContainer.getLobbyById(lobbyUUID);
+
+        this.lobbyContainer.startGameInLobby(lobby, player);
+
+        SelectedLobbyOverview selectedLobbyOverview = new SelectedLobbyOverview();
+        selectedLobbyOverview.lobby = lobby;
+        selectedLobbyOverview.lobby.gameSession.currentPlayingPlayerBySessionId = this.gameSessionContainer.determinePlayingPlayerInSession(lobbyUUID).getSessionId();
+        template.convertAndSend(LOBBY_JOINED_ENDPOINT.replace("{lobbyId}", lobbyId), selectedLobbyOverview);
+
+        return this.lobbyContainer.getAllWaitingLobbies();
+    }
+
 	@MessageExceptionHandler
     @SendToUser("/errors")
 	public String handleException(Throwable exception) {
+        exception.printStackTrace();
+
 		return exception.getMessage();
     }
 }

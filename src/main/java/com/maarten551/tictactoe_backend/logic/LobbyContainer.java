@@ -1,28 +1,32 @@
 package com.maarten551.tictactoe_backend.logic;
 
+import com.maarten551.tictactoe_backend.exception.*;
+import com.maarten551.tictactoe_backend.model.Lobby;
+import com.maarten551.tictactoe_backend.model.Player;
+import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
-
-import com.maarten551.tictactoe_backend.exception.LobbyDoesNotExistException;
-import com.maarten551.tictactoe_backend.exception.PlayerNotInLobbyException;
-import org.springframework.stereotype.Service;
-
-import com.maarten551.tictactoe_backend.model.GameSession;
-import com.maarten551.tictactoe_backend.model.Lobby;
-import com.maarten551.tictactoe_backend.model.Player;
 
 @Service
 public class LobbyContainer {
+    public static final int MINIMUM_AMOUNT_OF_PLAYERS_TO_START_GAME = 2;
+    private final GameSessionContainer gameSessionContainer;
     private ArrayList<Lobby> activeLobbies;
 
-    public LobbyContainer() {
+    public LobbyContainer(GameSessionContainer gameSessionContainer) {
+        this.gameSessionContainer = gameSessionContainer;
+
         this.activeLobbies = new ArrayList<>();
     }
 
     public Lobby createNewLobby(Player leader, String lobbyName) {
-        Lobby createdLobby = new Lobby(leader, new GameSession());
+        Lobby createdLobby = new Lobby(leader);
+        createdLobby.gameSession = this.gameSessionContainer.createGameSession(createdLobby);
+
         createdLobby.name = lobbyName;
 
         this.activeLobbies.add(createdLobby);
@@ -31,7 +35,7 @@ public class LobbyContainer {
     }
 
     public List<Lobby> getAllWaitingLobbies() {
-        return this.activeLobbies.stream().filter(lobby -> !lobby.gameSession.isActive())
+        return this.activeLobbies.stream().filter(lobby -> !lobby.gameSession.isActive)
                 .collect(Collectors.toList());
     }
 
@@ -58,12 +62,22 @@ public class LobbyContainer {
         }
     }
 
-    public Lobby getLobbyById(String lobbyId) throws LobbyDoesNotExistException {
-        Optional<Lobby> relatedLobby = this.activeLobbies.stream().filter(lobby -> lobby.id.toString().equals(lobbyId)).findFirst();
+    public Lobby getLobbyById(UUID lobbyId) throws LobbyDoesNotExistException {
+        Optional<Lobby> relatedLobby = this.activeLobbies.stream().filter(lobby -> lobby.id.equals(lobbyId)).findFirst();
         if (!relatedLobby.isPresent()) {
             throw new LobbyDoesNotExistException(String.format("Lobby with name '%s' does not exist", lobbyId));
         }
 
         return relatedLobby.get();
+    }
+
+    public void startGameInLobby(Lobby lobby, Player isStartedByPlayer) throws PlayerIsNotLeaderOfGameException, GameSessionHasAlreadyStartedException, NotEnoughPlayersInLobbyToStartException {
+        if (lobby.leader != isStartedByPlayer) {
+            throw new PlayerIsNotLeaderOfGameException("You're not the leader of the lobby");
+        } else if (lobby.players.size() < MINIMUM_AMOUNT_OF_PLAYERS_TO_START_GAME) {
+            throw new NotEnoughPlayersInLobbyToStartException(String.format("You need atleast %d players to start the game", MINIMUM_AMOUNT_OF_PLAYERS_TO_START_GAME));
+        }
+
+        this.gameSessionContainer.startGameSession(lobby);
     }
 }

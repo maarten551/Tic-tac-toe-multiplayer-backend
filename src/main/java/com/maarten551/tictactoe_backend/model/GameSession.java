@@ -1,9 +1,26 @@
 package com.maarten551.tictactoe_backend.model;
 
-public class GameSession {
-    private boolean isActive = false;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.maarten551.tictactoe_backend.model.serializer.PlayerColorSerializer;
 
-    public boolean isActive() {
-        return isActive;
+import java.awt.*;
+import java.util.Map;
+
+public class GameSession {
+    @JsonSerialize(using = PlayerColorSerializer.class)
+    public Map<Player, Color> playerColors;
+    public boolean isActive = false;
+    public int turnCounter = 0;
+    public String currentPlayingPlayerBySessionId;
+    @JsonIgnore
+    private Lobby lobby;
+
+    public GameSession(Lobby lobby) {
+        this.lobby = lobby;
+    }
+
+    public Lobby getLobby() {
+        return lobby;
     }
 }
