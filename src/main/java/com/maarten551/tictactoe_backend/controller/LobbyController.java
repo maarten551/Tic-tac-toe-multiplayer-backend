@@ -1,5 +1,6 @@
 package com.maarten551.tictactoe_backend.controller;
 
+import com.maarten551.tictactoe_backend.dto.PlayerExecutionMove;
 import com.maarten551.tictactoe_backend.dto.SelectedLobbyOverview;
 import com.maarten551.tictactoe_backend.exception.*;
 import com.maarten551.tictactoe_backend.logic.GameSessionContainer;
@@ -102,6 +103,35 @@ public class LobbyController {
         template.convertAndSend(LOBBY_JOINED_ENDPOINT.replace("{lobbyId}", lobbyId), selectedLobbyOverview);
 
         return this.lobbyContainer.getAllWaitingLobbies();
+    }
+
+    @MessageMapping({"/send/lobby/{lobbyId}/execute-move"})
+    public void onPlayerActionExecution(@DestinationVariable String lobbyId, @Payload PlayerExecutionMove move, SimpMessageHeaderAccessor headerAccessor) throws GameSessionNotFoundException, WrongPlayerTryingToExecuteAnActionException, LobbyDoesNotExistException, FieldIsAlreadySetException {
+        UUID lobbyUUID = UUID.fromString(lobbyId);
+        Player playerAllowedToMakeAMove = this.gameSessionContainer.determinePlayingPlayerInSession(lobbyUUID);
+        if (!playerAllowedToMakeAMove.getSessionId().equals(headerAccessor.getSessionId())) {
+            throw new WrongPlayerTryingToExecuteAnActionException("It's not your turn!");
+        }
+
+        Lobby lobby = this.lobbyContainer.getLobbyById(lobbyUUID);
+        Player player = playerContainer.getPlayerBySessionId(headerAccessor.getSessionId());
+        SelectedLobbyOverview selectedLobbyOverview = new SelectedLobbyOverview();
+
+        try {
+            this.gameSessionContainer.executeMove(lobby, player, move.x, move.y);
+        } catch (GameSessionEndsInATieException e) {
+            selectedLobbyOverview.gameOverMessageType = "warning";
+            selectedLobbyOverview.gameOverMessage = e.getMessage();
+        }
+
+        selectedLobbyOverview.lobby = lobby;
+        selectedLobbyOverview.lobby.gameSession.currentPlayingPlayerBySessionId = this.gameSessionContainer.determinePlayingPlayerInSession(lobbyUUID).getSessionId();
+        template.convertAndSend(LOBBY_JOINED_ENDPOINT.replace("{lobbyId}", lobbyId), selectedLobbyOverview);
+
+        if (selectedLobbyOverview.gameOverMessage != null && selectedLobbyOverview.gameOverMessage.length() > 0) {
+            this.gameSessionContainer.removeGameSession(lobby);
+            this.lobbyContainer.removeLobby(lobby);
+        }
     }
 
 	@MessageExceptionHandler

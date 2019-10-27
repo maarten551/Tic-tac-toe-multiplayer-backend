@@ -1,18 +1,18 @@
 package com.maarten551.tictactoe_backend.logic;
 
+import com.maarten551.tictactoe_backend.exception.FieldIsAlreadySetException;
+import com.maarten551.tictactoe_backend.exception.GameSessionEndsInATieException;
 import com.maarten551.tictactoe_backend.exception.GameSessionHasAlreadyStartedException;
 import com.maarten551.tictactoe_backend.exception.GameSessionNotFoundException;
+import com.maarten551.tictactoe_backend.model.FieldCell;
 import com.maarten551.tictactoe_backend.model.GameSession;
 import com.maarten551.tictactoe_backend.model.Lobby;
 import com.maarten551.tictactoe_backend.model.Player;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
 
 @Service
 public class GameSessionContainer {
@@ -50,6 +50,7 @@ public class GameSessionContainer {
         }
 
         gameSession.playerColors = this.generateColorsForLobby(lobby);
+        gameSession.field = this.generateField(lobby);
         gameSession.isActive = true;
     }
 
@@ -61,6 +62,23 @@ public class GameSessionContainer {
 
         List<Player> lobbyPlayer = gameSession.getLobby().players;
         return lobbyPlayer.get(gameSession.turnCounter % lobbyPlayer.size());
+    }
+
+    public void executeMove(Lobby lobby, Player player, int x, int y) throws FieldIsAlreadySetException, GameSessionEndsInATieException {
+        GameSession gameSession = this.gameSessionByLobbyId.get(lobby.id);
+        FieldCell fieldCell = gameSession.field[x][y];
+
+        if (fieldCell.selectedByPlayer != null) {
+            throw new FieldIsAlreadySetException(String.format("This field is already set by the player '%s'", fieldCell.selectedByPlayer.getUsername()));
+        }
+
+        fieldCell.selectedByPlayer = player;
+        fieldCell.colorOfPlayer = gameSession.playerColors.get(player);
+        gameSession.turnCounter++;
+
+        if (gameSession.turnCounter == gameSession.field.length * gameSession.field.length) {
+            throw new GameSessionEndsInATieException("All the fields are filled, it's a tie!");
+        }
     }
 
     private Map<Player, Color> generateColorsForLobby(Lobby lobby) {
@@ -95,5 +113,25 @@ public class GameSessionContainer {
         final float luminance = 0.9f;
 
         return Color.getHSBColor(hue, saturation, luminance);
+    }
+
+    private FieldCell[][] generateField(Lobby lobby) {
+        // The field gets bigger as long more players join the lobby
+        // Default is 3 fields by 3 fields when there 2 players, for every player extra, the dimension is +2
+        int dimension = 3 + ((lobby.players.size() - 2) * 2);
+
+        FieldCell[][] field = new FieldCell[dimension][];
+        for (int i = 0; i < field.length; i++) {
+            field[i] = new FieldCell[dimension];
+            for (int j = 0; j < field[i].length; j++) {
+                field[i][j] = new FieldCell();
+            }
+        }
+
+        return field;
+    }
+
+    public void removeGameSession(Lobby lobby) {
+        this.gameSessionByLobbyId.remove(lobby.id);
     }
 }

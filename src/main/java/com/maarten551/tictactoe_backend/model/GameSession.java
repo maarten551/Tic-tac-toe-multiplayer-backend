@@ -13,6 +13,7 @@ public class GameSession {
     public boolean isActive = false;
     public int turnCounter = 0;
     public String currentPlayingPlayerBySessionId;
+    public FieldCell[][] field;
     @JsonIgnore
     private Lobby lobby;
 

@@ -80,4 +80,8 @@ public class LobbyContainer {
 
         this.gameSessionContainer.startGameSession(lobby);
     }
+
+    public void removeLobby(Lobby lobby) {
+        this.activeLobbies.remove(lobby);
+    }
 }
