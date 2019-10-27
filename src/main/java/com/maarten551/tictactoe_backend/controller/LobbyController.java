@@ -122,6 +122,9 @@ public class LobbyController {
         } catch (GameSessionEndsInATieException e) {
             selectedLobbyOverview.gameOverMessageType = "warning";
             selectedLobbyOverview.gameOverMessage = e.getMessage();
+        } catch (GameSessionWonByPlayerException e) {
+            selectedLobbyOverview.gameOverMessageType = "success";
+            selectedLobbyOverview.gameOverMessage = e.getMessage();
         }
 
         selectedLobbyOverview.lobby = lobby;
