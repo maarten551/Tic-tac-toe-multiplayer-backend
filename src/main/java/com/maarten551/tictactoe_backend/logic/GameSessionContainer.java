@@ -85,10 +85,11 @@ public class GameSessionContainer {
     }
 
     private boolean checkIfPlayerHasWon(GameSession gameSession, Player player) {
-        int[][] strategies = new int[3][2];
+        int[][] strategies = new int[4][2];
         strategies[0] = new int[]{1, 0};
         strategies[1] = new int[]{0, 1};
         strategies[2] = new int[]{1, 1};
+        strategies[3] = new int[]{-1, 1};
 
         for (int x = 0; x < gameSession.field.length; x++) {
             for (int y = 0; y < gameSession.field[x].length; y++) {
