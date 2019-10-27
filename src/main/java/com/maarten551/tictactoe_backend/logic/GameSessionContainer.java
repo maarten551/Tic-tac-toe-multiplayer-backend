@@ -110,6 +110,10 @@ public class GameSessionContainer {
             int sequenceX = x + (strategy[0] * cellSequenceIndex);
             int sequenceY = y + (strategy[1] * cellSequenceIndex);
 
+            if (sequenceX < 0 || sequenceY < 0) {
+                return false;
+            }
+
             if (sequenceX >= gameSession.field.length || sequenceY >= gameSession.field.length) {
                 return false;
             }
