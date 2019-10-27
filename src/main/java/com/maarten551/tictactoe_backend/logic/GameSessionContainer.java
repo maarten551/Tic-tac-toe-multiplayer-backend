@@ -1,9 +1,6 @@
 package com.maarten551.tictactoe_backend.logic;
 
-import com.maarten551.tictactoe_backend.exception.FieldIsAlreadySetException;
-import com.maarten551.tictactoe_backend.exception.GameSessionEndsInATieException;
-import com.maarten551.tictactoe_backend.exception.GameSessionHasAlreadyStartedException;
-import com.maarten551.tictactoe_backend.exception.GameSessionNotFoundException;
+import com.maarten551.tictactoe_backend.exception.*;
 import com.maarten551.tictactoe_backend.model.FieldCell;
 import com.maarten551.tictactoe_backend.model.GameSession;
 import com.maarten551.tictactoe_backend.model.Lobby;
@@ -11,11 +8,13 @@ import com.maarten551.tictactoe_backend.model.Player;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
-import java.util.*;
 import java.util.List;
+import java.util.*;
+import java.util.stream.IntStream;
 
 @Service
 public class GameSessionContainer {
+    private final int neededAmountOfFieldCellsInARow = 3;
     // Use these colors for the players, if the group is bigger, generate random colors
     private final Color[] preferablePlayerColors = new Color[]{
             Color.RED,
@@ -64,7 +63,7 @@ public class GameSessionContainer {
         return lobbyPlayer.get(gameSession.turnCounter % lobbyPlayer.size());
     }
 
-    public void executeMove(Lobby lobby, Player player, int x, int y) throws FieldIsAlreadySetException, GameSessionEndsInATieException {
+    public void executeMove(Lobby lobby, Player player, int x, int y) throws FieldIsAlreadySetException, GameSessionEndsInATieException, GameSessionWonByPlayerException {
         GameSession gameSession = this.gameSessionByLobbyId.get(lobby.id);
         FieldCell fieldCell = gameSession.field[x][y];
 
@@ -76,9 +75,46 @@ public class GameSessionContainer {
         fieldCell.colorOfPlayer = gameSession.playerColors.get(player);
         gameSession.turnCounter++;
 
+        if (this.checkIfPlayerHasWon(gameSession, player)) {
+            throw new GameSessionWonByPlayerException(String.format("Game won by player '%s', congrats!", player.getUsername()));
+        }
+
         if (gameSession.turnCounter == gameSession.field.length * gameSession.field.length) {
             throw new GameSessionEndsInATieException("All the fields are filled, it's a tie!");
         }
+    }
+
+    private boolean checkIfPlayerHasWon(GameSession gameSession, Player player) {
+        int[][] strategies = new int[3][2];
+        strategies[0] = new int[]{1, 0};
+        strategies[1] = new int[]{0, 1};
+        strategies[2] = new int[]{1, 1};
+
+        for (int x = 0; x < gameSession.field.length; x++) {
+            for (int y = 0; y < gameSession.field[x].length; y++) {
+                for (int[] strategy : strategies) {
+                    boolean hasWon = this.checkIfPlayerHasWonOnFieldCellAndStrategy(gameSession, x, y, strategy, player);
+                    if (hasWon) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean checkIfPlayerHasWonOnFieldCellAndStrategy(GameSession gameSession, int x, int y, int[] strategy, Player player) {
+        return IntStream.range(0, this.neededAmountOfFieldCellsInARow).allMatch(cellSequenceIndex -> {
+            int sequenceX = x + (strategy[0] * cellSequenceIndex);
+            int sequenceY = y + (strategy[1] * cellSequenceIndex);
+
+            if (sequenceX >= gameSession.field.length || sequenceY >= gameSession.field.length) {
+                return false;
+            }
+
+            return gameSession.field[sequenceX][sequenceY].selectedByPlayer == player;
+        });
     }
 
     private Map<Player, Color> generateColorsForLobby(Lobby lobby) {
